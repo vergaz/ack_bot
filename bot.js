@@ -2,12 +2,13 @@ const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
 const fs = require("fs");
 const wordsToNumbers = require("words-to-numbers").wordsToNumbers;
+const puppeteer = require("puppeteer");
 
-const CHROME_PATH = "C:/Program Files/Google/Chrome/Application/chrome";
+// Use Puppeteer's bundled Chromium by calling puppeteer.executablePath()
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
-    executablePath: CHROME_PATH,
+    executablePath: puppeteer.executablePath(),
     headless: true,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   },
@@ -169,7 +170,9 @@ client.on("message", async (message) => {
       }
     }
   
+    // -------------------------
     // Best of 10 Quiz Feature
+    // -------------------------
     if (text.startsWith("!bestof10")) {
       let args = text.split(" ");
       let difficulty = args[1];
@@ -307,7 +310,7 @@ client.on("message", async (message) => {
       fs.writeFileSync("leaderboard.json", JSON.stringify({}, null, 2));
       return await safeReply(message, "✅ Leaderboard has been reset.");
     }
-    
+  
   } catch (error) {
     console.error("Error processing message:", error);
   }
