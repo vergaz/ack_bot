@@ -1,4 +1,3 @@
-
 {
   "name": "church-bot",
   "version": "1.0.0",
@@ -12,7 +11,10 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@adiwajshing/baileys": "^5.0.0",
+    "@hapi/boom": "^10.0.1",
     "axios": "^1.7.9",
+    "pino": "^9.6.0",
     "puppeteer": "^24.1.1",
     "puppeteer-core": "^24.1.1",
     "qrcode-terminal": "^0.12.0",

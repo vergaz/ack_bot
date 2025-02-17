@@ -26,12 +26,7 @@ async function safeReply(message, text, options = {}) {
     await message.reply(text, options);
   } catch (error) {
     console.error("Error using message.reply, falling back to sendMessage:", error);
-    // If the error is related to mentions, remove them and try again.
-    if (options.mentions) {
-      await client.sendMessage(message.from, text);
-    } else {
-      await client.sendMessage(message.from, text, options);
-    }
+    await client.sendMessage(message.from, text, options);
   }
 }
 
@@ -72,51 +67,45 @@ const normalizeAnswer = (answer) => {
 client.on("message", async (message) => {
   try {
     const text = message.body.trim();
-    // Normalize commands: if message starts with "!", remove any extra space immediately after the exclamation mark.
-    let normalizedText = text;
-    if (text.startsWith("!")) {
-      normalizedText = text.replace(/^!\s+/, "!");
-    }
-    
     const senderName = message._data.notifyName || "friend";
     const chatId = message.from;
-    // In groups, message.author is the sender; in private chats, use message.from.
+    // In groups, message.author is the sender; in private chats, message.from is used.
     const senderId = message.author || message.from;
     // Normalize the sender id by removing any suffix (e.g., "@c.us")
     const normalizedSender = senderId.replace(/@.*$/, "");
-
-    console.log(`Received: ${normalizedText} from ${senderName} (${normalizedSender}) in chat ${chatId}`);
-
+  
+    console.log(`Received: ${text} from ${senderName} (${normalizedSender}) in chat ${chatId}`);
+  
     // -------------------------
     // MODE TOGGLING (Admin only)
     // -------------------------
-    if (normalizedText === "!private" && adminList.includes(normalizedSender)) {
+    if (text === "!private" && adminList.includes(normalizedSender)) {
       botMode = "private";
       return await safeReply(message, "🔒 Bot mode set to PRIVATE. Only admins can interact with the bot.");
     }
-    if (normalizedText === "!public" && adminList.includes(normalizedSender)) {
+    if (text === "!public" && adminList.includes(normalizedSender)) {
       botMode = "public";
       return await safeReply(message, "🌐 Bot mode set to PUBLIC. Everyone can now interact with the bot.");
     }
-
+  
     // -------------------------
     // PRIVATE MODE CHECK
     // -------------------------
     if (botMode === "private" && !adminList.includes(normalizedSender)) {
       return await safeReply(message, "🚫 This bot is currently in PRIVATE mode. Please contact an admin.");
     }
-
+  
     // -------------------------
     // CANCEL PENDING QUIZ IF A NEW COMMAND IS RECEIVED
     // -------------------------
-    if (pendingDifficultySelection[chatId] && normalizedText.startsWith("!") && normalizedText !== "!quiz") {
+    if (pendingDifficultySelection[chatId] && text.startsWith("!") && text !== "!quiz") {
       delete pendingDifficultySelection[chatId];
     }
-
+  
     // -------------------------
     // MAIN MENU
     // -------------------------
-    if (normalizedText === "!menu") {
+    if (text === "!menu") {
       return await safeReply(
         message,
         `📜 *Church Bot Commands* 📜\n\n` +
@@ -139,20 +128,21 @@ client.on("message", async (message) => {
           `\n⚙️ *Admin Commands*\n` +
           `   ➤ *!resetleaderboard* - Clear quiz scores (Admins only)\n` +
           `\n💡 *Stay Blessed!*\n` +
+          `   *LOVE: THE TREASURE AND FOUNDATION OF LIFE*\n` +
           `   *©2025 Vergaz_the_Don. All Rights Reserved.* ✨\n`
       );
     }
-
+  
     // -------------------------
     // QUIZ FEATURES
     // -------------------------
-    if (normalizedText === "!quiz") {
+    if (text === "!quiz") {
       pendingDifficultySelection[chatId] = true;
       return await safeReply(message, "📚 Select a difficulty: *easy*, *medium*, *hard*.");
     }
-
+  
     if (pendingDifficultySelection[chatId]) {
-      let difficulty = normalizedText.toLowerCase();
+      let difficulty = text.toLowerCase();
       if (["easy", "medium", "hard"].includes(difficulty)) {
         if (!triviaData[difficulty].length) {
           return await safeReply(message, "❌ No questions available for this difficulty.");
@@ -165,10 +155,10 @@ client.on("message", async (message) => {
         return await safeReply(message, "❌ Invalid difficulty! Choose: *easy*, *medium*, *hard* or type another command to cancel.");
       }
     }
-
+  
     if (activeQuizzes[chatId]) {
       let correctAnswer = normalizeAnswer(activeQuizzes[chatId].answer);
-      let userAnswer = normalizeAnswer(normalizedText);
+      let userAnswer = normalizeAnswer(text);
       if (userAnswer === correctAnswer) {
         leaderboard[senderName] = (leaderboard[senderName] || 0) + 1;
         fs.writeFileSync("leaderboard.json", JSON.stringify(leaderboard, null, 2));
@@ -178,10 +168,10 @@ client.on("message", async (message) => {
         return await safeReply(message, "❌ Incorrect! Try again or type *!quiz* for a new question.");
       }
     }
-
+  
     // Best of 10 Quiz Feature
-    if (normalizedText.startsWith("!bestof10")) {
-      let args = normalizedText.split(" ");
+    if (text.startsWith("!bestof10")) {
+      let args = text.split(" ");
       let difficulty = args[1];
       if (!["easy", "medium", "hard"].includes(difficulty) || triviaData[difficulty].length < 10) {
         return await safeReply(message, "❌ Invalid difficulty! Use: *!bestof10 easy*, *!bestof10 medium*, or *!bestof10 hard*.");
@@ -190,11 +180,11 @@ client.on("message", async (message) => {
       bestOfTenSessions[chatId] = { questions: questions, current: 0, score: 0 };
       return await safeReply(message, `📖 *Best of 10 - ${difficulty.toUpperCase()}*\n\nQuestion 1/10:\n${questions[0].question}`);
     }
-
+  
     if (bestOfTenSessions[chatId]) {
       let session = bestOfTenSessions[chatId];
       let correctAnswer = normalizeAnswer(session.questions[session.current].answer);
-      let userAnswer = normalizeAnswer(normalizedText);
+      let userAnswer = normalizeAnswer(text);
       if (userAnswer === correctAnswer) session.score++;
       session.current++;
       if (session.current < 10) {
@@ -206,22 +196,22 @@ client.on("message", async (message) => {
         return await safeReply(message, `🎉 Best of 10 Completed! You scored ${session.score}/10.`);
       }
     }
-
+  
     // -------------------------
     // GOLDEN BELLS LYRICS
     // -------------------------
-    if (normalizedText.startsWith("!lyrics")) {
-      const songName = normalizedText.slice(8).trim();
+    if (text.startsWith("!lyrics")) {
+      const songName = text.slice(8).trim();
       if (!goldenBellsLyrics[songName]) {
         return await safeReply(message, "❌ Song not found.");
       }
       return await safeReply(message, `🎵 *${songName}*\n\n${goldenBellsLyrics[songName]}`);
     }
-
+  
     // -------------------------
     // LEADERBOARD
     // -------------------------
-    if (normalizedText === "!leaderboard") {
+    if (text === "!leaderboard") {
       let sorted = Object.entries(leaderboard).sort((a, b) => b[1] - a[1]).slice(0, 5);
       let result = "🏆 *Leaderboard*\n\n" +
         (sorted.length
@@ -229,12 +219,12 @@ client.on("message", async (message) => {
           : "No scores yet.");
       return await safeReply(message, result);
     }
-
+  
     // -------------------------
     // SUNDAY TEACHINGS
     // -------------------------
-    if (normalizedText.startsWith("!addteaching")) {
-      const parts = normalizedText.slice(13).split(":");
+    if (text.startsWith("!addteaching")) {
+      const parts = text.slice(13).split(":");
       if (parts.length < 2) {
         return await safeReply(message, "❌ Use format: *!addteaching <title>: <message>*");
       }
@@ -245,7 +235,7 @@ client.on("message", async (message) => {
       return await safeReply(message, `✅ Teaching *"${title}"* has been saved.`);
     }
     
-    if (normalizedText === "!teachings") {
+    if (text === "!teachings") {
       if (Object.keys(sundayTeachings).length === 0) {
         return await safeReply(message, "❌ No teachings available yet.");
       }
@@ -254,8 +244,8 @@ client.on("message", async (message) => {
       return await safeReply(message, teachingList);
     }
     
-    if (normalizedText.startsWith("!teaching")) {
-      const title = normalizedText.slice(10).trim();
+    if (text.startsWith("!teaching")) {
+      const title = text.slice(10).trim();
       if (!sundayTeachings[title]) {
         return await safeReply(message, `❌ Teaching *"${title}"* not found.`);
       }
@@ -265,8 +255,8 @@ client.on("message", async (message) => {
     // -------------------------
     // TEAMS & GROUP FEATURES
     // -------------------------
-    if (normalizedText.startsWith("!jointeam")) {
-      const teamName = normalizedText.slice(10).trim();
+    if (text.startsWith("!jointeam")) {
+      const teamName = text.slice(10).trim();
       teams[teamName] = teams[teamName] || [];
       if (!teams[teamName].includes(senderName)) {
         teams[teamName].push(senderName);
@@ -277,19 +267,18 @@ client.on("message", async (message) => {
       }
     }
     
-    if (normalizedText === "!teamleaderboard") {
+    if (text === "!teamleaderboard") {
       let teamScores = Object.entries(teams)
         .map(([team, members]) => `*${team}* - ${members.length} members`)
         .join("\n");
       return await safeReply(message, teamScores || "❌ No teams yet.");
     }
     
-    if (normalizedText === "!tagall") {
+    if (text === "!tagall") {
       const chat = await message.getChat();
       if (!chat || !chat.participants) {
         return await safeReply(message, "❌ Unable to fetch participants.");
       }
-      // Use an array of serialized IDs (strings) for mentions.
       let mentions = chat.participants.map((p) => p.id._serialized);
       return await safeReply(message, "📢 *Attention everyone!*", { mentions });
     }
@@ -297,8 +286,8 @@ client.on("message", async (message) => {
     // -------------------------
     // BATTLE MODE
     // -------------------------
-    if (normalizedText.startsWith("!battle")) {
-      const parts = normalizedText.split(" ");
+    if (text.startsWith("!battle")) {
+      const parts = text.split(" ");
       if (parts.length < 2) {
         return await safeReply(message, "❌ Please mention an opponent: *!battle @opponent*");
       }
@@ -313,14 +302,16 @@ client.on("message", async (message) => {
     // -------------------------
     // ADMIN COMMANDS
     // -------------------------
-    if (normalizedText === "!resetleaderboard" && adminList.includes(normalizedSender)) {
+    if (text === "!resetleaderboard" && adminList.includes(normalizedSender)) {
       leaderboard = {};
       fs.writeFileSync("leaderboard.json", JSON.stringify({}, null, 2));
       return await safeReply(message, "✅ Leaderboard has been reset.");
     }
     
+  } catch (error) {
+    console.error("Error processing message:", error);
+  }
 });
 
 client.initialize();
-
 
