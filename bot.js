@@ -33,7 +33,7 @@ async function safeReply(message, text, options = {}) {
 
 client.on("qr", (qr) => {
   console.log("Scan this QR code to log in:");
-  qrcode.generate(qr, { small: true });
+  qrcode.generate(qr, { small: false });
 });
 
 client.on("ready", () => console.log("✅ Bot is online and ready!"));
